@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RicBoss Online Bank - Eagle Edition</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <style>
+        :root { --primary-green: #1b8a43; --light-green: #e8f5ed; --white: #ffffff; --danger: #d9534f; --eagle-gold: #fbc02d; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 400px; background: var(--white); min-height: 100vh; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.1); padding-bottom: 50px; }
+        .digital-clock { text-align: center; background: #000; color: #00ff00; padding: 5px; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; }
+        .rb-header { background: var(--primary-green); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 0 0 20px 20px; position: relative; }
+        .notification-box { position: relative; cursor: pointer; font-size: 22px; }
+        .notify-dot { position: absolute; top: -2px; right: -2px; background: red; color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; display: none; justify-content: center; align-items: center; border: 2px solid var(--primary-green); }
+        .notify-window { display: none; position: absolute; top: 55px; right: 0; width: 260px; background: white; border: 1px solid #ddd; box-shadow: 0 5px 25px rgba(0,0,0,0.2); border-radius: 12px; z-index: 2000; padding: 12px; }
+        .notify-item { font-size: 12px; padding: 10px; border-bottom: 1px solid #eee; color: #333; line-height: 1.4; }
+        .logo-text { font-size: 22px; font-weight: 900; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .eagle-container { position: relative; width: 35px; height: 30px; animation: eagleFloat 3s ease-in-out infinite; }
+        .eagle-body { position: absolute; width: 8px; height: 15px; background: #f57f17; border-radius: 50% 50% 5px 5px; left: 13px; top: 7px; z-index: 2; }
+        .eagle-wing { position: absolute; width: 18px; height: 9px; background: var(--eagle-gold); border-radius: 50%; z-index: 1; top: 9px; }
+        .eagle-wing.left { left: 0; transform-origin: right center; animation: flapLeft 0.5s ease-in-out infinite alternate; }
+        .eagle-wing.right { right: 0; transform-origin: left center; animation: flapRight 0.5s ease-in-out infinite alternate; }
+        @keyframes flapLeft { 0% { transform: rotate(30deg); } 100% { transform: rotate(-30deg); } }
+        @keyframes flapRight { 0% { transform: rotate(-30deg); } 100% { transform: rotate(30deg); } }
+        @keyframes eagleFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .balance-card { background: var(--white); margin: -15px 20px 15px; padding: 12px; border-radius: 50px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid var(--light-green); cursor: pointer; }
+        .balance-text { color: var(--primary-green); font-size: 16px; font-weight: bold; }
+        
+        /* আমাদের সেবাসমূহ স্টাইল */
+        .svc-container { margin: 0 20px 15px; text-align: center; }
+        .svc-btn { width: 100%; background: var(--eagle-gold); border: none; padding: 10px; border-radius: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .svc-content { display: none; padding: 15px; background: #fffdf2; border: 1px solid var(--eagle-gold); border-radius: 12px; margin-top: 5px; font-size: 12px; text-align: left; line-height: 1.6; color: #333; }
+        
+        .menu-section { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px; }
+        .menu-btn { background: var(--light-green); border: 1px solid #d1e7da; padding: 12px; border-radius: 12px; text-align: center; cursor: pointer; font-weight: bold; color: var(--primary-green); font-size: 13px; }
+        .statement-container { margin: 15px 20px; border-radius: 12px; overflow: hidden; border: 1px solid #eee; }
+        .statement-header { background: var(--primary-green); color: white; padding: 10px; text-align: center; font-weight: bold; cursor: pointer; }
+        .statement-list { display: none; max-height: 250px; overflow-y: auto; background: white; padding: 5px; }
+        .history-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 12px; cursor: pointer; }
+        .history-details { display: none; font-size: 10px; color: #777; padding-top: 5px; border-top: 1px dashed #ddd; margin-top: 5px; }
+        input, textarea { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
+        .confirm-btn { background: var(--primary-green); color: white; border: none; width: 100%; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:3000; justify-content:center; align-items:center; }
+        .modal-content { background:#fff; width:85%; max-width:320px; padding:20px; border-radius:15px; max-height: 85vh; overflow-y: auto; }
+        #adminPanel { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 5000; padding: 20px; overflow-y: auto; box-sizing: border-box; }
+        .admin-btn-sm { padding: 5px 8px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; font-size: 11px; }
+ #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 10000; text-align: center; overflow-y: auto; }
+.header-login { background-color: #006837; color: #ffffff; padding: 20px; font-size: 22px; font-weight: bold; border-bottom: 2px solid #004d29; }
+.notice-board-login { background: #fff1f6; border-bottom: 2px solid #c2185b; padding: 8px 0; overflow: hidden; }
+.scrolling-text-login { color: #c2185b; font-size: 14px; font-weight: bold; white-space: nowrap; animation: scroll 25s linear infinite; display: inline-block; }
+@keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+.profile-section-login { margin: 15px auto; position: relative; width: 130px; cursor: pointer; display: inline-block; }
+.profile-img-circle-login { width: 120px; height: 120px; border-radius: 50%; border: 4px solid #006837; object-fit: cover; background: #eee; }
+.camera-icon-login { position: absolute; bottom: 8px; right: 8px; background: #c2185b; color: white; border-radius: 50%; padding: 6px; font-size: 12px; border: 2px solid white; }
+.login-input-login { width: 85%; padding: 14px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; background: #fdfdfd; }
+.login-btn-login { width: 85%; padding: 14px; background-color: #006837; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: bold; margin-top: 10px; }
+     
+    </style>
+</head>
+<body>
+<div id="loginOverlay">
+    <div class="header-login">RIC BOSS Online Bank</div>
+    <div class="notice-board-login">
+        <div class="scrolling-text-login">RIC BOSS Online Bank-এ Send Money ফ্রি! ওমরাহ ফান্ডের অগ্রীম জমা সুবিধা উপভোগ করুন। [cite: 2026-02-23]</div>
+    </div>
+    <div style="padding: 25px;">
+        <div class="profile-section-login" onclick="document.getElementById('gallery-pick-new').click()">
+            <img id="user-avatar-login" src="https://via.placeholder.com/120?text=User" class="profile-img-circle-login">
+            <div class="camera-icon-login">📷</div>
+        </div>
+        <input type="file" id="gallery-pick-new" style="display:none" accept="image/*" onchange="updatePhotoNew(event)">
+        <h3 style="color: #006837; margin: 0;">লগইন করুন</h3>
+        <p style="font-size: 12px; color: #666; margin-top: 5px;">পর্যাপ্ত টাকা না হলে বাকি টাকা বিনা লাভে ধার হিসেবে দেওয়া হবে। [cite: 2026-02-23]</p>
+        <input type="number" id="login-mobile-new" class="login-input-login" placeholder="মোবাইল নাম্বার">
+        <input type="password" id="login-pin-new" class="login-input-login" placeholder="আপনার গোপন পিন দিন">
+        <button class="login-btn-login" onclick="handleSecureLogin()">Login</button>
+    </div>
+</div>
+  
+
+<div class="app-container">
+    <div class="digital-clock" id="clock">00:00:00 AM</div>
+  <div id="date_display" style="text-align: center; font-size: 15px; color: #FFD700; margin-top: 5px; font-weight: bold; text-shadow: 1px 1px 2px #000;"></div>
+
+ 
+    <div id="loginScreen" style="padding: 20px; text-align: center;">
+        <h1 style="color: var(--primary-green); margin:0;">RicBoss</h1>
+        <p style="color: #666; font-size: 14px;">Online Bank Limited</p>
+        <div style="background: #fff9c4; padding: 15px; border-radius: 12px; margin: 20px 0; border: 1px dashed #fbc02d; font-size: 13px;">
+            <b>✨ ওমরাহ বিশেষ অফার ✨</b><br>
+            খিদমাহ্ সওদা মক্কা ওমরাহ লিমিটেড-এর মাধ্যমে 'অগ্রীম জমা'র সুবর্ণ সুযোগ!
+        </div>
+        <input type="number" id="regPhone" placeholder="মোবাইল নাম্বার">
+        <input type="password" id="regPin" placeholder="৫ ডিজিট পিন">
+        <button class="confirm-btn" onclick="registerUser()">প্রবেশ করুন 🔓</button>
+    </div>
+
+    <div id="mainApp" style="display: none;">
+        <div class="rb-header">
+            <div class="logo-text" onclick="handleAdminTap()">
+                <div class="eagle-container"><div class="eagle-body"></div><div class="eagle-wing left"></div><div class="eagle-wing right"></div></div> RicBoss
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div onclick="toggleSettings()" style="cursor: pointer; font-size: 20px;">⚙️</div>
+                
+                <div class="notification-box" onclick="toggleNotify()">
+                    🔔 <div id="notifyDot" class="notify-dot">0</div>
+  <div id="notifyWindow" class="notify-window" style="position: fixed; left: 50%; top: 35%; transform: translate(-50%, -50%); width: 85%; max-width: 320px; z-index: 10000; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.3); display: none;">
+         
+                        <h4 style="margin:0 0 10px 0; color:var(--primary-green); border-bottom:1px solid #eee;">বার্তা কেন্দ্র</h4>
+                        <div id="notifyList" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div id="userNameTop" style="font-size: 13px; font-weight: bold; color: white;">স্বাগতম!</div>
+                    <div id="displayPhone" style="font-size: 9px; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 10px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="balance-card" onclick="showBalance()">
+            <span id="balanceText" class="balance-text">ব্যালেন্স দেখতে ট্যাপ করুন</span>
+        </div>
+
+        <div class="svc-container">
+            <button class="svc-btn" onclick="toggleSvc()">✨ আমাদের সেবাসমূহ</button>
+            <div id="svcContent" class="svc-content">
+                <center><b>"দ্রুত, সহজ ও সাশ্রয়ী লেনদেন—সব সময় আপনার পাশে রিস বস অনলাইন ব্যাংক।"</b></center><br>
+                <b>🕋 খিদমাহ্ সওদা মক্কা ওমরাহ লিমিটেড:</b> ওমরাহ ফান্ডের 'অগ্রীম জমা' ৬, ১২, ২৪ অথবা ৩৬ মাস মেয়াদে নেওয়া হচ্ছে। ওমরাহ করার পর্যাপ্ত টাকা না হলে বাকি টাকা বিনা লাভে ধার দেওয়া হবে, যা ওমরাহ শেষে ৩-৬ মাসের কিস্তিতে পরিশোধযোগ্য।<br><br>
+                <b>🛒 খিদমাহ্ সওদা ওয়েলফেয়ার প্রজেক্ট:</b> ন্যায্য মূল্যে নিত্য প্রয়োজনীয় পণ্য ক্রয়ের বিশেষ সুবিধা।<br><br>
+                <b>💰 লোন:</b> ওমরাহ ফান্ডের সদস্যদের জন্য বিনা লাভে লোন সুবিধা। সাধারণ লোনের ক্ষেত্রে প্রতি ১০,০০০ টাকায় ৩ মাসের জন্য ২০% লাভ প্রযোজ্য।
+            </div>
+        </div>
+
+        <div id="settingsForm" style="display:none; padding:15px; background:#fff; margin:10px 20px; border:1px solid #ddd; border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h4 style="color: var(--primary-green); margin:0 0 10px 0;">👤 প্রোফাইল আপডেট</h4>
+            <input type="text" id="set_name" placeholder="আপনার নাম">
+            <input type="password" id="set_old_pin" placeholder="বর্তমান পিন">
+            <input type="password" id="set_new_pin" placeholder="নতুন পিন (ঐচ্ছিক)">
+            <button class="confirm-btn" onclick="updateProfile()">তথ্য সংরক্ষণ করুন</button>
+            <button style="background:none; border:none; color:gray; width:100%; margin-top:8px; font-size:12px;" onclick="toggleSettings()">বাতিল</button>
+        </div>
+
+        <div class="menu-section">
+            <div class="menu-btn" onclick="openAction('Send Money')">💸 সেন্ড মানি</div>
+            <div class="menu-btn" onclick="openAction('Cash Out')">🏧 ক্যাশ আউট</div>
+            <div class="menu-btn" style="grid-column: span 2; background: #fff3cd; color: #856404;" onclick="openAction('B2B Transfer')">🏢 B2B Transfer (Business to Business)</div>
+            <div class="menu-btn" style="grid-column: span 2;" onclick="showLoanRules()">💰 লোন আবেদন (NID আবশ্যক)</div>
+        </div>
+
+        <div class="statement-container">
+            <div class="statement-header" onclick="toggleStatement()">📜 লেনদেন স্টেটমেন্ট</div>
+            <div id="statementList" class="statement-list"></div>
+        </div>
+
+        <div id="actionForm" style="display:none; padding:15px; background:#fff; margin:10px 20px; border:1px solid #ddd; border-radius:12px;">
+            <h4 id="actionTitle" style="color: var(--primary-green); margin:0 0 10px 0;"></h4>
+            
+            <div id="loanInputs" style="display:none;">
+                <input type="text" id="loanName" placeholder="গ্রাহকের নাম">
+                <div style="display:flex; gap:10px; margin: 5px 0; font-size: 13px; align-items:center;">
+                    <label><input type="radio" name="rel" value="পিতা" checked style="width:auto;"> পিতা</label>
+                    <label><input type="radio" name="rel" value="স্বামী" style="width:auto;"> স্বামী</label>
+                </div>
+                <input type="text" id="loanGuar" placeholder="পিতা বা স্বামীর নাম">
+                <textarea id="loanAddr" placeholder="পুরো ঠিকানা" rows="2" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:8px;"></textarea>
+            </div>
+
+            <input type="number" id="targetPhone" placeholder="নাম্বার">
+            <input type="number" id="nidNumber" style="display:none;" placeholder="১০-১৭ ডিজিট NID নাম্বার">
+            <input type="number" id="amount" placeholder="টাকার পরিমাণ">
+            <input type="password" id="pin" placeholder="আপনার পিন">
+            <button class="confirm-btn" onclick="confirmAction()">নিশ্চিত করুন</button>
+            <button style="background:none; border:none; color:gray; width:100%; margin-top:8px;" onclick="closeAction()">বাতিল</button>
+        </div>
+
+        <div style="text-align:center; padding:15px; font-size:12px;">
+            <div style="background: #e8f5ed; padding: 12px; border-radius: 12px; border: 1px solid #1b8a43; line-height: 1.5;">
+                🕋 ওমরাহ ফান্ডের <b>'অগ্রীম জমা'</b> ৬, ১২, ২৪ অথবা ৩৬ মাস মেয়াদে নেওয়া হচ্ছে। ওমরাহ করার পর্যাপ্ত টাকা না হলে, বাকি টাকা <b>বিনা লাভে ধার</b> হিসেবে দেওয়া হবে, যা ওমরাহ শেষে ৩ থেকে ৬ মাসের কিস্তিতে পরিশোধ করতে হবে।
+            </div>
+  <div id="noticeBoard" style="margin: 10px 10px; background: #fff9c4; border: 1px dashed #fbc02d; border-radius: 10px; overflow: hidden; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    <div style="display: flex; align-items: center;">
+        <span style="background: #fbc02d; color: #000; padding: 2px 8px; border-radius: 5px; font-weight: bold; font-size: 11px; margin-right: 10px; white-space: nowrap;">📢 নোটিশ:</span>
+        <marquee id="movingNotice" behavior="scroll" direction="left" scrollamount="5" style="font-size: 13px; color: #333; font-weight: bold;">
+            RicBoss অনলাইন ব্যাংকিং-এ আপনাকে স্বাগতম!
+        </marquee>
+    </div>
+</div>
+          
+            <div id="qrcode" style="display:flex; justify-content:center; margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
+
+<div id="loanModal" class="modal">
+    <div class="modal-content">
+        <h3 style="color:var(--primary-green); margin-top:0;">📋 লোনের শর্তাবলী</h3>
+        <ul style="font-size:12px; line-height:1.6; color:#444; padding-left:20px;">
+            <li>ভোটার আইডি (NID) কার্ড দিয়ে আবেদন করতে হবে।</li>
+            <li>ওমরাহ ফান্ডে <b>'অগ্রীম জমা'</b> থাকলে বিনা লাভে ধার পাবেন।</li>
+            <li>লোনের মেয়াদ ৩ মাস এবং পরিশোধ ৩-৬ মাসের কিস্তিতে।</li>
+            <li>সাধারণ লোনে ১০,০০০ টাকায় ৩ মাসে ১২,০০০ টাকা শোধ (২০% লাভ)।</li>
+        </ul>
+        <button class="confirm-btn" onclick="acceptLoanRules()">সম্মত হয়ে আবেদন করুন</button>
+        <button style="width:100%; border:none; background:#eee; margin-top:5px; padding:10px; border-radius:8px;" onclick="document.getElementById('loanModal').style.display='none'">বন্ধ করুন</button>
+    </div>
+</div>
+
+<div id="adminPanel">
+    <h2 style="color: var(--primary-green); text-align:center;">🛡 অ্যাডমিন কন্ট্রোল</h2>
+    <div style="background:#f9f9f9; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #ddd;">
+        <h4>ব্যালেন্স ও পিন এডজাস্ট</h4>
+        <input type="number" id="admPhone" placeholder="ইউজার মোবাইল">
+        <input type="number" id="admAmt" placeholder="টাকা (কমাতে - দিন)">
+        <input type="number" id="admNewPin" placeholder="নতুন পিন (ঐচ্ছিক)">
+        <button class="confirm-btn" onclick="admUpdate()">আপডেট করুন</button>
+    </div>
+  <div style="margin: 10px 0; text-align: center;">
+    <button onclick="toggleAgentPanel()" style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        👥 এজেন্ট ম্যানেজমেন্ট সেন্টার
+    </button>
+</div>
+
+<div id="agentPanel" style="display:none; margin: 15px 0; padding: 15px; border: 2px solid #007bff; border-radius: 12px; background: #f9f9f9;">
+    <h3 style="text-align: center; color: #007bff; margin-top:0; font-size: 18px;">🏦 RIC BOSS এজেন্ট কন্ট্রোল</h3>
+    
+    <div style="background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #ddd;">
+        <label style="font-size: 11px; font-weight: bold; color: #555;">মেইন এডমিন বি টু বি নাম্বার:</label>
+        <input type="number" id="mainB2BPhone" placeholder="017XXXXXXXX" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px;">
+        <button onclick="saveAdminB2B()" style="width: 100%; margin-top: 5px; padding: 8px; background: #333; color: white; border: none; border-radius: 4px;">সেভ করুন</button>
+    </div>
+<div style="background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #ddd;">
+    <label style="font-size: 11px; font-weight: bold; color: #555;">প্রতি হাজারে এজেন্ট কমিশন (টাকা):</label>
+    <input type="number" id="commissionRate" placeholder="উদা: ৪ বা ৫" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px;">
+    <button onclick="saveCommission()" style="width: 100%; margin-top: 5px; padding: 8px; background: #e67e22; color: white; border: none; border-radius: 4px; font-weight: bold;">কমিশন আপডেট করুন</button>
+</div>
+
+    <div style="background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+        <label style="font-size: 11px; font-weight: bold; color: #555;">নতুন এজেন্ট নিয়োগ (১১ ডিজিট):</label>
+        <input type="number" id="agentPhone" placeholder="এজেন্ট নাম্বার" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px;">
+        <input type="number" id="agentLimit" placeholder="লিমিট (ঐচ্ছিক)" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px;">
+        
+        <input type="text" id="agentName" placeholder="এজেন্টের নাম" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px;">
+<input type="text" id="agentAddress" placeholder="এজেন্টের ঠিকানা" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px;">
+
+        <button onclick="addAgent()" style="width: 100%; margin-top: 10px; padding: 10px; background: #28a745; color: white; border: none; border-radius: 5px; font-weight: bold;">রেজিস্টার করুন</button>
+    </div>
+    <div style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px;">
+    <h4 style="text-align: center; color: #007bff; font-size: 14px; margin-bottom: 10px;">📋 বর্তমান এজেন্ট তালিকা</h4>
+    <div id="adminAgentList" style="background: #fff; border-radius: 8px; border: 1px solid #eee; max-height: 250px; overflow-y: auto;">
+        <p style="text-align:center; padding:10px; font-size:12px; color: #888;">লোড হচ্ছে...</p>
+    </div>
+</div>
+
+</div>
+  
+  <div style="margin: 15px 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fff;">
+    <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: bold; color: #333;">📢 গ্লোবাল নোটিশ আপডেট:</p>
+    <input type="text" id="adminNoticeInput" placeholder="কমা (,) দিয়ে অনেকগুলো নোটিশ লিখুন..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 12px; margin-bottom: 8px;">
+    <button onclick="updateGlobalNotice()" class="confirm-btn" style="background: #28a745; margin: 0; width: 100%; height: 35px; font-size: 13px;">নোটিশ আপডেট করুন</button>
+</div>
+
+ 
+    <div id="loanReqList"></div>
+    <hr>
+    <button class="confirm-btn" style="background:#007bff; margin-bottom:10px;" onclick="viewAllLoans()">📋 লোন লিস্ট (পাওনা হিসাব)</button>
+    <div id="allLoanList" style="display:none; background:#f0f8ff; padding:10px; border-radius:10px; border:1px solid #007bff; max-height:300px; overflow-y:auto; font-size:12px; margin-bottom:10px;"></div>
+    <hr>
+    <div id="userListAdm"></div>
+    <button class="confirm-btn" style="background:#333; margin-top:20px;" onclick="document.getElementById('adminPanel').style.display='none'">লগ আউট</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+    const firebaseConfig = { apiKey: "AIzaSyC77TV5TSxR65CmGjdpgI9677H0Gvg0E8U", databaseURL: "https://ric-boss77-default-rtdb.firebaseio.com/", projectId: "ric-boss77" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+// Firebase থেকে একাধিক নোটিশ (Array) পড়ার নতুন কোড
+const noticeRef = db.ref("adminSettings/globalNotice");
+
+noticeRef.on("value", (snapshot) => {
+    const data = snapshot.val();
+    const noticeElement = document.getElementById('movingNotice');
+    
+    if (data && noticeElement) {
+        // কমা (,) দিয়ে লেখাগুলোকে আলাদা করা হচ্ছে
+        const noticeArray = data.split(','); 
+        
+        // লেখাগুলোর মাঝখানে গ্যাপ এবং ডিভাইডার (|) যোগ করা
+        const combinedNotice = noticeArray.join(' &nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;&nbsp; ');
+        
+        noticeElement.innerHTML = combinedNotice;
+    }
+});
+// এডমিন থেকে ডাটাবেসে নোটিশ পাঠানোর ফাংশন
+function updateGlobalNotice() {
+    const noticeVal = document.getElementById('adminNoticeInput').value;
+    if(noticeVal && noticeVal.trim() !== "") {
+        db.ref("adminSettings/globalNotice").set(noticeVal)
+        .then(() => {
+            alert("সফলভাবে নোটিশ আপডেট হয়েছে!");
+            document.getElementById('adminNoticeInput').value = ""; // বক্স খালি করা
+        })
+        .catch((error) => { alert("Error: " + error.message); });
+    } else {
+        alert("দয়া করে কিছু লিখুন!");
+    }
+}
+
+    let userPhone = localStorage.getItem("rb_phone"), currentBalance = 0, tapCount = 0, tapTimer;
+
+  setInterval(() => {
+    const now = new Date();
+    // ঘড়ি আপডেট
+    document.getElementById('clock').innerText = now.toLocaleTimeString();
+    
+    // তারিখ আপডেট (বার, দিন মাস সাল)
+    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    const dateDisplay = document.getElementById('date_display');
+    if (dateDisplay) {
+        dateDisplay.innerText = now.toLocaleDateString('bn-BD', options);
+    }
+}, 1000);
+
+    if(userPhone) { loadDashboard(userPhone); }
+
+    function toggleSvc() {
+        const content = document.getElementById('svcContent');
+        content.style.display = (content.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function toggleSettings() {
+        const sForm = document.getElementById('settingsForm');
+        sForm.style.display = (sForm.style.display === 'block') ? 'none' : 'block';
+    }
+
+    async function updateProfile() {
+        const newName = document.getElementById('set_name').value;
+        const oldPin = document.getElementById('set_old_pin').value;
+        const newPin = document.getElementById('set_new_pin').value;
+        if(!oldPin) return alert("বর্তমান পিনটি দিন");
+        const snap = await db.ref("users/" + userPhone).get();
+        if(oldPin !== snap.val().pin) return alert("বর্তমান পিন সঠিক নয়!");
+        let up = {};
+        if(newName) up.name = newName;
+        if(newPin) { if(newPin.length < 5) return alert("পিন ৫ ডিজিট হতে হবে"); up.pin = newPin; }
+        if(Object.keys(up).length === 0) return alert("কিছু পরিবর্তন করেননি");
+        await db.ref("users/" + userPhone).update(up);
+        alert("প্রোফাইল আপডেট হয়েছে!");
+        toggleSettings();
+    }
+
+    function showLoanRules() { document.getElementById('loanModal').style.display = 'flex'; }
+    function acceptLoanRules() { document.getElementById('loanModal').style.display = 'none'; openAction('Loan Request'); }
+
+    function showBalance() {
+        const txt = document.getElementById('balanceText');
+        txt.innerText = "৳ " + currentBalance.toFixed(2);
+        setTimeout(() => { txt.innerText = "ব্যালেন্স দেখতে ট্যাপ করুন"; }, 4000);
+    }
+
+    function toggleStatement() {
+        const list = document.getElementById('statementList');
+        list.style.display = (list.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function toggleNotify() {
+        const win = document.getElementById('notifyWindow');
+        win.style.display = win.style.display === 'block' ? 'none' : 'block';
+        document.getElementById('notifyDot').style.display = 'none';
+    }
+
+    async function registerUser() {
+        const phone = document.getElementById('regPhone').value, pin = document.getElementById('regPin').value;
+        if(phone.length < 11 || pin.length < 5) return alert("সঠিক তথ্য দিন");
+        const snap = await db.ref("users/" + phone).get();
+        if(!snap.exists()) {
+            await db.ref("users/" + phone).set({ balance: 50, pin: pin, loanLimit: 10000, name: "স্বাগতম!" });
+            await sendNotify(phone, "স্বাগতম!", "৳৫০ বোনাস পেয়েছেন।");
+        }
+        localStorage.setItem("rb_phone", phone);
+        loadDashboard(phone);
+    }
+
+    function loadDashboard(phone) {
+        userPhone = phone; 
+        document.getElementById('loginScreen').style.display = 'none'; 
+        document.getElementById('mainApp').style.display = 'block';
+        document.getElementById('displayPhone').innerText = phone;
+        db.ref("users/" + phone).on("value", snap => { 
+            const data = snap.val();
+            currentBalance = data.balance || 0; 
+            window.uLoanLimit = data.loanLimit || 10000;
+            document.getElementById('userNameTop').innerText = data.name || "স্বাগতম!";
+        });
+        loadHistory(phone);
+        loadNotifies(phone);
+}
+async function completeTransaction(sender, receiver, amt, charge, type) {
+    const senderSnap = await db.ref("users/" + sender).get();
+    const receiverSnap = await db.ref("users/" + receiver).get();
+    const commSnap = await db.ref("adminSettings/commissionRate").get();
+    
+    const commissionRate = commSnap.val() || 0; 
+    const totalDebit = amt + charge;
+    const agentCommission = (amt / 1000) * commissionRate;
+
+    const updates = {};
+    const timeNow = new Date().toLocaleString('bn-BD');
+
+    updates[`users/${sender}/balance`] = senderSnap.val().balance - totalDebit;
+    updates[`users/${receiver}/balance`] = receiverSnap.val().balance + amt + agentCommission;
+
+    const uHisKey = db.ref("history/" + sender).push().key;
+    updates[`history/${sender}/${uHisKey}`] = { type: type, target: receiver, amt: -totalDebit, time: timeNow };
+
+    const aHisKey = db.ref("history/" + receiver).push().key;
+    updates[`history/${receiver}/${aHisKey}`] = { type: "Received & Commission", target: sender, amt: amt + agentCommission, time: timeNow };
+
+    await db.ref().update(updates);
+    await sendNotify(receiver, "টাকা ও কমিশন প্রাপ্তি", `৳${amt} প্রাপ্তি ও ৳${agentCommission} কমিশন যোগ হয়েছে।`);
+}
+
+    function loadHistory(phone) {
+        db.ref("history/" + phone).limitToLast(50).on("value", snap => {
+            const list = document.getElementById('statementList'); list.innerHTML = "";
+            snap.forEach(h => {
+                const d = h.val(), key = h.key;
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.onclick = function() {
+                    const det = this.querySelector('.history-details');
+                    det.style.display = (det.style.display === 'block') ? 'none' : 'block';
+                };
+                item.innerHTML = `<div style="display:flex; justify-content:space-between; width:100%;"><div><b>${d.type}</b><br><small>${d.target || ''}</small></div><b style="color:${d.amt>0?'green':'red'}">${d.amt>0?'+':''}${d.amt} ৳</b></div><div class="history-details">📅 সময়: ${d.time}<br>🆔 TRX: ${key}</div>`;
+                list.insertBefore(item, list.firstChild);
+            });
+        });
+    }
+
+    function loadNotifies(phone) {
+        db.ref("notifications/" + phone).on("value", snap => {
+            const list = document.getElementById('notifyList');
+            const dot = document.getElementById('notifyDot');
+            list.innerHTML = "";
+            if(snap.exists()) {
+                let count = 0;
+                snap.forEach(n => { 
+                    count++; const d = n.val(); 
+                    list.innerHTML = `<div class="notify-item"><b>${d.title}</b><br>${d.msg}<br><small style="color:#888; font-size:9px;">📅 ${d.time || ''}</small></div>` + list.innerHTML; 
+                });
+                dot.innerText = count; dot.style.display = 'flex';
+            } else { list.innerHTML = "<p style='font-size:11px; text-align:center;'>কোনো মেসেজ নেই</p>"; }
+        });
+    }
+
+    async function sendNotify(phone, title, msg) { await db.ref("notifications/" + phone).push({ title, msg, time: new Date().toLocaleString() }); }
+
+    function openAction(mode) { 
+        document.getElementById('actionForm').style.display = 'block'; 
+        document.getElementById('actionTitle').innerText = mode; 
+        const isLoan = (mode === 'Loan Request');
+        document.getElementById('nidNumber').style.display = isLoan ? 'block' : 'none';
+        document.getElementById('loanInputs').style.display = isLoan ? 'block' : 'none';
+        if(isLoan) document.getElementById('targetPhone').value = "Admin";
+    }
+    function closeAction() { document.getElementById('actionForm').style.display = 'none'; document.getElementById('targetPhone').value = ""; }
+
+    async function confirmAction() {
+        const target = document.getElementById('targetPhone').value, nid = document.getElementById('nidNumber').value,
+              amt = parseFloat(document.getElementById('amount').value), pin = document.getElementById('pin').value,
+              action = document.getElementById('actionTitle').innerText;
+        
+        const uSnap = await db.ref("users/" + userPhone).get();
+        if(pin !== uSnap.val().pin) return alert("ভুল পিন!");
+    // ১. ক্যাশ আউট (এজেন্ট চেক)
+    if(action === 'Cash Out') {
+        const agentSnap = await db.ref("agents/" + target).get();
+        if(!agentSnap.exists()) return alert("দুঃখিত! এই নাম্বারটি কোনো বৈধ এজেন্ট নাম্বার নয়।");
+        let chg = (amt / 1000) * 12; 
+        if(currentBalance < (amt + chg)) return alert("পর্যাপ্ত ব্যালেন্স নেই (চার্জসহ)!");
+        await completeTransaction(userPhone, target, amt, chg, "Cash Out");
+        alert("ক্যাশ আউট সফল!");
+        closeAction(); return;
+    } 
+    
+    // ২. বি টু বি ট্রান্সফার (এজেন্টদের জন্য)
+    else if(action === 'B2B Transfer') {
+        const isAgent = await db.ref("agents/" + userPhone).get();
+        if(!isAgent.exists()) return alert("এই সুবিধাটি শুধুমাত্র এজেন্টদের জন্য!");
+        const adminSnap = await db.ref("adminSettings/mainB2BPhone").get();
+        const mainAdmin = adminSnap.val();
+        if(!mainAdmin) return alert("এডমিন বি টু বি নাম্বার সেট করা নেই!");
+        if(currentBalance < amt) return alert("ব্যালেন্স নেই!");
+        await completeTransaction(userPhone, mainAdmin, amt, 0, "B2B Transfer");
+        alert("বি টু বি সফল!");
+        closeAction(); return;
+    }
+
+    // ৩. সাধারণ সেন্ড মানি
+    else if(action === 'Send Money') {
+        const tSnap = await db.ref("users/" + target).get();
+        if(!tSnap.exists()) return alert("প্রাপক ইউজার খুঁজে পাওয়া যায়নি!");
+        if(currentBalance < amt) return alert("পর্যাপ্ত ব্যালেন্স নেই!");
+        await completeTransaction(userPhone, target, amt, 0, "Send Money");
+        alert("সেন্ড মানি সফল!");
+        closeAction(); return;
+    }
+
+        if(action === 'Loan Request') {
+            const lName = document.getElementById('loanName').value;
+            const lRel = document.querySelector('input[name="rel"]:checked').value;
+            const lGuar = document.getElementById('loanGuar').value;
+            const lAddr = document.getElementById('loanAddr').value;
+            if(!lName || !lAddr) return alert("সব তথ্য পূরণ করুন");
+            let dep = amt * 0.10;
+            if(currentBalance < dep) return alert("জামানত ব্যালেন্স নেই।");
+            await db.ref("loanReqs/" + userPhone).set({ 
+                phone: userPhone, name: lName, relation: lRel, guardian: lGuar, address: lAddr, nid, amt, dep, time: new Date().toLocaleString() 
+            });
+            alert("আবেদন জমা হয়েছে!");
+        } else {
+            // ক্যাশ আউট চার্জ ১২ টাকা করা হয়েছে
+            let chg = (action === 'Cash Out' ? (amt/1000)*12 : 0);
+            const tSnap = await db.ref("users/" + target).get();
+            if(!tSnap.exists()) return alert("প্রাপক নেই");
+            if(currentBalance < (amt + chg)) return alert("ব্যালেন্স নেই");
+            await db.ref("users/" + userPhone).update({ balance: currentBalance - (amt + chg) });
+            await db.ref("users/" + target).update({ balance: tSnap.val().balance + amt });
+            await db.ref("history/" + userPhone).push({ type: action, target: target, amt: -(amt + chg), time: new Date().toLocaleString('bn-BD') });
+            await db.ref("history/" + target).push({ type: "Received", target: userPhone, amt: amt, time: new Date().toLocaleString('bn-BD') });
+            await sendNotify(target, "টাকা পেয়েছেন!", `৳${amt} পাঠানো হয়েছে ${userPhone} থেকে।`);
+            alert("সফল!");
+        }
+        closeAction();
+    }
+
+    function handleAdminTap() {
+        tapCount++; clearTimeout(tapTimer); tapTimer = setTimeout(() => tapCount = 0, 3000);
+        if(tapCount >= 6) { if(prompt("অ্যাডমিন পিন:") === "112233") { document.getElementById('adminPanel').style.display = 'block'; loadAdmLoans(); loadAdmUsers(); } }
+    }
+
+    function loadAdmLoans() {
+        db.ref("loanReqs").on("value", snap => {
+            const div = document.getElementById('loanReqList'); div.innerHTML = "<h4>লোন আবেদন:</h4>";
+            snap.forEach(l => {
+                const d = l.val();
+                div.innerHTML += `<div style="background:#eee; padding:10px; margin-bottom:10px; border-radius:8px; font-size:12px;">
+                    <b>নাম:</b> ${d.name}<br><b>${d.relation}:</b> ${d.guardian}<br><b>ঠিকানা:</b> ${d.address}<br>
+                    <b>ফোন:</b> ${d.phone} | <b>NID:</b> ${d.nid}<br><b>লোন:</b> ৳${d.amt}<br>
+                    <div style="display:flex; gap:10px; margin-top:8px;">
+                        <button onclick="approveLoan('${d.phone}', ${d.amt}, ${d.dep})" style="background:green; color:white; border:none; padding:5px; flex:1; border-radius:4px;">Approve</button>
+                        <button onclick="rejectLoan('${d.phone}')" style="background:red; color:white; border:none; padding:5px; flex:1; border-radius:4px;">Reject</button>
+                    </div>
+                </div>`;
+            });
+        });
+    }
+
+    async function approveLoan(p, a, d) {
+        const s = await db.ref("users/"+p).get();
+        await db.ref("users/"+p).update({ balance: s.val().balance - d + a, currentLoan: (s.val().currentLoan || 0) + a });
+        await db.ref("history/"+p).push({ type: "Loan Approved", amt: a-d, time: new Date().toLocaleString() });
+        await db.ref("loanReqs/"+p).remove();
+        alert("লোন এপ্রুভ হয়েছে!");
+    }
+
+    async function rejectLoan(p) {
+        if(confirm("আবেদনটি রিজেক্ট করবেন?")) {
+            await db.ref("loanReqs/"+p).remove();
+            await sendNotify(p, "লোন বাতিল", "দুঃখিত, আপনার লোন আবেদনটি বাতিল করা হয়েছে।");
+            alert("রিজেক্ট করা হয়েছে!");
+        }
+    }
+
+    function loadAdmUsers() {
+        db.ref("users").on("value", snap => {
+            const list = document.getElementById('userListAdm'); list.innerHTML = "<h4>ইউজার লিস্ট:</h4>";
+            snap.forEach(u => {
+                const row = document.createElement("div");
+                row.style = "font-size:11px; border-bottom:1px solid #ddd; padding:10px 0;";
+                row.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><span onclick="viewUserHist('${u.key}')" style="cursor:pointer; color:blue;"><b>${u.key}</b> | ৳${u.val().balance}</span><div style="display:flex; gap:5px;"><button class="admin-btn-sm" style="background:var(--eagle-gold);" onclick="quickFill('${u.key}')">পিন</button><button class="admin-btn-sm" onclick="upLim('${u.key}')">লিমিট</button><button class="admin-btn-sm" onclick="sendMsgAdm('${u.key}')">বার্তা</button></div></div><div id="adm_hist_${u.key}" style="display:none; background:#f4f4f4; margin-top:5px; padding:5px; border-radius:5px;">Loading...</div>`;
+                list.appendChild(row);
+            });
+        });
+    }
+
+    function viewUserHist(ph) {
+        const div = document.getElementById('adm_hist_'+ph); div.style.display = (div.style.display === 'block') ? 'none' : 'block';
+        if(div.style.display === 'block') { db.ref("history/"+ph).limitToLast(15).once("value", s => { div.innerHTML = "<b>শেষ ১৫টি লেনদেন:</b><br>"; s.forEach(h => { div.innerHTML += `${h.val().type} | ${h.val().amt}৳ | <small>${h.val().time}</small><br>`; }); }); }
+    }
+
+    function quickFill(p) { document.getElementById('admPhone').value = p; }
+    async function upLim(p) { let n = prompt("নতুন লিমিট:"); if(n) await db.ref("users/"+p).update({ loanLimit: parseInt(n) }); }
+    async function sendMsgAdm(p) { let m = prompt(p + " নাম্বারের জন্য বার্তাটি লিখুন:"); if(m) { await sendNotify(p, "অ্যাডমিন বার্তা", m); alert("বার্তা পাঠানো হয়েছে!"); } }
+
+    function viewAllLoans() {
+        const listDiv = document.getElementById('allLoanList'); listDiv.style.display = (listDiv.style.display === 'none') ? 'block' : 'none';
+        if(listDiv.style.display === 'block') {
+            listDiv.innerHTML = "<b>কাদের কাছে লোন পাওনা আছে:</b><br>";
+            db.ref("users").once("value", snap => {
+                let found = false;
+                snap.forEach(u => { 
+                    const data = u.val(); 
+                    if(data.currentLoan && data.currentLoan > 0) { 
+                        found = true; 
+                        listDiv.innerHTML += `
+                        <div style="border-bottom:1px solid #ccc; padding:8px 0;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <span>👤 ${u.key}</span> 
+                                <b style="color:red;">বাকি: ৳${data.currentLoan}</b>
+                            </div>
+                            <div style="display:flex; gap:5px; margin-top:5px;">
+                                <input type="number" id="payAmt_${u.key}" placeholder="জমার পরিমাণ" style="padding:4px; font-size:11px; flex:1; height:25px;">
+                                <button onclick="clearLoan('${u.key}')" style="font-size:10px; padding:2px 8px; background:green; color:white; border:none; border-radius:4px; cursor:pointer;">জমা নিন</button>
+                            </div>
+                        </div>`; 
+                    } 
+                });
+                if(!found) listDiv.innerHTML += "কারো লোন বাকি নেই।";
+            });
+        }
+    }
+
+    async function clearLoan(p) {
+        const payInput = document.getElementById('payAmt_' + p);
+        const amountToPay = parseFloat(payInput.value);
+        if(!amountToPay || amountToPay <= 0) return alert("সঠিক টাকার পরিমাণ দিন।");
+        const snap = await db.ref("users/" + p).get();
+        const currentLoan = snap.val().currentLoan || 0;
+        if(amountToPay > currentLoan) return alert("পাওনা টাকার চেয়ে বেশি জমা নেওয়া সম্ভব নয়।");
+        const remainingLoan = currentLoan - amountToPay;
+        if(confirm(`${p} এর লোন থেকে ৳${amountToPay} জমা করবেন?`)) {
+            await db.ref("users/" + p).update({ currentLoan: remainingLoan });
+            await db.ref("history/" + p).push({ type: "Loan Payment", amt: amountToPay, time: new Date().toLocaleString(), target: "বাকি লোন: ৳" + remainingLoan });
+            await sendNotify(p, "লোন কিস্তি জমা", `আপনার লোন থেকে ৳${amountToPay} জমা নেওয়া হয়েছে।\nবর্তমান বাকি লোন: ৳${remainingLoan}।`);
+            alert(`সাফল্যের সাথে ৳${amountToPay} জমা হয়েছে।`);
+            viewAllLoans();
+        }
+    }
+
+    async function admUpdate() {
+        const p = document.getElementById('admPhone').value, a = parseFloat(document.getElementById('admAmt').value || 0), nPin = document.getElementById('admNewPin').value;
+        const s = await db.ref("users/"+p).get(); if(!s.exists()) return alert("নেই");
+        let up = {}; if(a !== 0) { up.balance = s.val().balance + a; await db.ref("history/"+p).push({ type: "Admin Adj", amt: a, time: new Date().toLocaleString() }); }
+        if(nPin) up.pin = nPin; await db.ref("users/"+p).update(up); alert("সফল!");
+    }
+function updatePhotoNew(event) {
+    const reader = new FileReader();
+    reader.onload = function() {
+        document.getElementById('user-avatar-login').src = reader.result;
+        localStorage.setItem('user_photo', reader.result);
+    }
+    reader.readAsDataURL(event.target.files[0]);
+}
+// আপনার ফাইলের একদম নিচের স্ক্রিপ্ট অংশটি (handleSecureLogin থেকে শেষ পর্যন্ত) এটি দিয়ে রিপ্লেস করুন:
+
+async function handleSecureLogin() {
+    // সেভ করা নাম্বার আছে কি না চেক
+    const savedPhone = localStorage.getItem("rb_phone");
+    const mobileInput = document.getElementById('login-mobile-new');
+    const pinInput = document.getElementById('login-pin-new');
+    
+    const mobile = savedPhone || (mobileInput ? mobileInput.value : "");
+    const pin = pinInput ? pinInput.value : "";
+
+    if (!mobile || pin.length < 4) {
+        alert("সঠিক পিন দিন");
+        return;
+    }
+
+    try {
+        const snap = await db.ref("users/" + mobile).get();
+        if (snap.exists()) {
+            const userData = snap.val();
+            if (userData.pin === pin) {
+                localStorage.setItem("rb_phone", mobile);
+                localStorage.setItem("rb_name", userData.name || "ইউজার");
+                
+                // সফল হলে লগইন পর্দা লুকিয়ে অ্যাপ দেখানো
+                document.getElementById('loginOverlay').style.display = 'none';
+                loadDashboard(mobile);
+            } else {
+                alert("ভুল পিন!");
+            }
+        } else {
+            alert("অ্যাকাউন্ট নেই");
+        }
+    } catch (err) {
+        alert("ইন্টারনেট সংযোগ নেই");
+    }
+}
+
+// পেজ লোড হওয়ার সময় পিন-লক ইন্টারফেস তৈরি করা
+window.onload = function() {
+    const savedPhone = localStorage.getItem("rb_phone");
+    const savedName = localStorage.getItem("rb_name") || "ইউজার";
+    const savedPhoto = localStorage.getItem("user_photo") || "https://via.placeholder.com/120?text=User";
+    
+    if (savedPhone) {
+        // যদি আগে লগইন থাকে, তবে নাম্বার বক্স সরিয়ে শুধু পিন বক্স দেখাবে
+        const overlay = document.getElementById('loginOverlay');
+        overlay.innerHTML = `
+            <div class="header-login">RIC BOSS Online Bank</div>
+            <div style="padding: 25px; text-align: center;">
+                <div class="profile-section-login">
+                    <img id="user-avatar-login" src="${savedPhoto}" class="profile-img-circle-login">
+                </div>
+                <h3 style="color: #006837; margin: 0;">স্বাগতম, ${savedName}</h3>
+                <p style="color: #666; font-size: 14px;">${savedPhone}</p>
+                
+                <input type="password" id="login-pin-new" class="login-input-login" placeholder="আপনার গোপন পিন দিন" style="text-align:center; letter-spacing:4px;">
+                
+                <button class="login-btn-login" onclick="handleSecureLogin()">প্রবেশ করুন</button>
+                
+                <p onclick="clearSavedUser()" style="margin-top: 30px; color: #d9534f; cursor: pointer; font-size: 13px; text-decoration: underline;">অন্য একাউন্ট ব্যবহার করুন</p>
+            </div>
+        `;
+    }
+};
+
+// আপনার কোডের ৫৭০ নম্বর লাইন থেকে শেষ পর্যন্ত মুছে এটি বসান ➘
+
+function clearSavedUser() {
+    if(confirm("আপনি কি এই ফোন থেকে লগ-আউট করতে চান?")) {
+        localStorage.clear();
+        location.reload();
+    }
+}
+
+window.onload = function() {
+    const savedPhone = localStorage.getItem("rb_phone");
+    const savedName = localStorage.getItem("rb_name") || "ইউজার";
+    const savedPhoto = localStorage.getItem("user_photo") || "https://via.placeholder.com/120?text=User";
+    
+    if (savedPhone) {
+        const overlay = document.getElementById('loginOverlay');
+        overlay.innerHTML = `
+            <div class="header-login">RIC BOSS Online Bank</div>
+            <div style="padding: 25px; text-align: center;">
+                <div class="profile-section-login" onclick="document.getElementById('gallery-pick-new').click()">
+                    <img id="user-avatar-login" src="${savedPhoto}" class="profile-img-circle-login">
+                    <div class="camera-icon-login">📷</div>
+                </div>
+                <input type="file" id="gallery-pick-new" style="display:none" accept="image/*" onchange="updatePhotoNew(event)">
+                
+                <h3 style="color: #006837; margin: 10px 0 0 0;">স্বাগতম, ${savedName}</h3>
+                <p style="color: #666; font-size: 14px; margin-bottom: 20px;">${savedPhone}</p>
+                
+                <input type="password" id="login-pin-new" class="login-input-login" placeholder="গোপন পিন দিন" style="text-align:center; letter-spacing:4px;">
+                
+                <button class="login-btn-login" onclick="handleSecureLogin()">প্রবেশ করুন</button>
+  <div id="qrcode_login" style="display:flex; justify-content:center; margin-top: 20px;"></div>
+           
+              
+                <p onclick="clearSavedUser()" style="margin-top: 30px; color: #d9534f; cursor: pointer; font-size: 13px; text-decoration: underline;">অন্য একাউন্ট ব্যবহার করুন</p>
+                
+
+            </div>
+        `;
+            setTimeout(() => {
+        const qrBox = document.getElementById("qrcode_login");
+        if(qrBox) {
+            qrBox.innerHTML = ""; 
+            new QRCode(qrBox, { text: window.location.href, width: 80, height: 80 });
+        }
+    }, 500);
+
+    }
+};
+
+function updatePhotoNew(event) {
+    const reader = new FileReader();
+    reader.onload = function() {
+        const avatar = document.getElementById('user-avatar-login');
+        if(avatar) avatar.src = reader.result;
+        localStorage.setItem('user_photo', reader.result);
+    }
+    reader.readAsDataURL(event.target.files[0]);
+}
+// --- এজেন্ট ম্যানেজমেন্ট ফাংশন শুরু ---
+function toggleAgentPanel() {
+    const panel = document.getElementById('agentPanel');
+    if (panel.style.display === 'none' || panel.style.display === '') {
+        panel.style.display = 'block';
+                loadAdminAgentList();
+
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+function saveAdminB2B() {
+    const phone = document.getElementById('mainB2BPhone').value;
+    if(phone.length >= 11) {
+        db.ref("adminSettings/mainB2BPhone").set(phone)
+        .then(() => alert("সাফল্য: বি টু বি নাম্বার আপডেট হয়েছে।"))
+        .catch(err => alert("ভুল: " + err.message));
+    } else {
+        alert("সঠিক ১১ ডিজিট নাম্বার দিন!");
+    }
+}
+
+function addAgent() {
+    const phone = document.getElementById('agentPhone').value;
+    const limit = document.getElementById('agentLimit').value || 100000;
+    const name = document.getElementById('agentName').value;
+    const address = document.getElementById('agentAddress').value;
+
+    if (phone.length < 11) {
+        alert("সঠিক মোবাইল নাম্বার দিন!");
+        return;
+    }
+
+    db.ref("agents/" + phone).set({
+        agentPhone: phone,
+        name: name,
+        address: address,
+        limit: parseInt(limit),
+        status: "active",
+        joinedDate: new Date().toLocaleDateString('bn-BD')
+    }).then(() => {
+        alert("অভিনন্দন! " + phone + " এখন একজন অফিসিয়াল এজেন্ট।");
+        document.getElementById('agentPhone').value = "";
+        document.getElementById('agentLimit').value = "";
+        document.getElementById('agentName').value = "";
+        document.getElementById('agentAddress').value = "";
+    }).catch(err => {
+        alert("ভুল হয়েছে: " + err.message);
+    });
+}
+
+// এডমিন প্যানেল থেকে কমিশন সেভ করার ফাংশন
+function saveCommission() {
+    const rate = document.getElementById('commissionRate').value;
+    if(rate && rate > 0) {
+        db.ref("adminSettings/commissionRate").set(parseFloat(rate))
+        .then(() => alert("সাফল্য: এখন থেকে এজেন্ট হাজারে ৳" + rate + " কমিশন পাবে।"))
+        .catch(err => alert("ভুল: " + err.message));
+    } else {
+        alert("দয়া করে সঠিক একটি সংখ্যা লিখুন!");
+    }
+}
+
+// এডমিন প্যানেলে এজেন্ট লিস্ট লোড করার ফাংশন
+function loadAdminAgentList() {
+    db.ref("agents").on("value", snap => {
+        const listDiv = document.getElementById('adminAgentList');
+        if(!listDiv) return;
+        listDiv.innerHTML = "";
+        if(snap.exists()) {
+            snap.forEach(agent => {
+                const d = agent.val();
+                const row = document.createElement("div");
+                row.style = "padding: 10px; border-bottom: 1px solid #eee; font-size: 12px; display:flex; justify-content:space-between; align-items:center;";
+                row.innerHTML = `
+                    <div>
+                        <b>📞 ${agent.key}</b><br>
+                        <small>লিমিট: ৳${d.limit || 0}</small>
+                    </div>
+                    <button onclick="removeAgent('${agent.key}')" style="background:#ff4d4d; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:10px;">বাদ দিন</button>
+                `;
+                listDiv.appendChild(row);
+            });
+        } else {
+            listDiv.innerHTML = "<p style='text-align:center; padding:10px; font-size:12px;'>কোনো এজেন্ট নেই।</p>";
+        }
+    });
+}
+
+// এজেন্ট ডিলিট করার ফাংশন
+async function removeAgent(phone) {
+    if(confirm(phone + " নাম্বারটি কি বাদ দিতে চান?")) {
+        await db.ref("agents/" + phone).remove();
+        alert("এজেন্ট রিমুভ করা হয়েছে।");
+    }
+}
+
+// --- এজেন্ট ম্যানেজমেন্ট ফাংশন শেষ ---
+
+</script> 
+</body> 
+</html>
